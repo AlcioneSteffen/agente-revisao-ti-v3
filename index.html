@@ -12,6 +12,59 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useRef, useEffect } = React;
+
+function ApiKeyGate({ children }) {
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('anthropic_api_key') || '');
+  const [input, setInput] = useState('');
+  const [visible, setVisible] = useState(false);
+
+  const salvar = () => {
+    const k = input.trim();
+    if (!k.startsWith('sk-ant-')) { alert('Chave inválida. Deve começar com sk-ant-'); return; }
+    localStorage.setItem('anthropic_api_key', k);
+    setApiKey(k);
+    setInput('');
+  };
+
+  if (!apiKey) return (
+    <div style={{minHeight:'100vh',background:'linear-gradient(160deg,#eef4f9,#ddeaf5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{background:'#fff',borderRadius:12,padding:40,maxWidth:480,width:'90%',boxShadow:'0 4px 24px rgba(0,0,0,0.10)',border:'1px solid #c8dcea'}}>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={{fontSize:36,marginBottom:8}}>⚖️</div>
+          <div style={{fontFamily:'sans-serif',fontSize:18,fontWeight:'bold',color:'#1e3a5f'}}>Agente de Revisão de Artefatos de TIC</div>
+          <div style={{fontFamily:'sans-serif',fontSize:12,color:'#64748b',marginTop:4}}>TRF2 · Lei 14.133/2021 · IN SGD/ME 94/2022</div>
+        </div>
+        <div style={{fontFamily:'sans-serif',fontSize:13,color:'#334e62',marginBottom:16}}>
+          Para usar o agente, informe sua chave da API Anthropic. Ela será salva no navegador e não precisará ser digitada novamente.
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{fontFamily:'sans-serif',fontSize:12,color:'#64748b',display:'block',marginBottom:6}}>Chave API (começa com sk-ant-...)</label>
+          <div style={{display:'flex',gap:8}}>
+            <input
+              type={visible ? 'text' : 'password'}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key==='Enter' && salvar()}
+              placeholder="sk-ant-..."
+              style={{flex:1,padding:'10px 14px',borderRadius:8,border:'1px solid #b8d4e8',fontFamily:'monospace',fontSize:13,color:'#1a3a52'}}
+            />
+            <button onClick={() => setVisible(!visible)} style={{padding:'10px 14px',borderRadius:8,border:'1px solid #b8d4e8',background:'#f5f9fc',cursor:'pointer',fontSize:14}}>
+              {visible ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+        <button onClick={salvar} style={{width:'100%',padding:'12px',borderRadius:8,background:'linear-gradient(135deg,#2c5f85,#1a3a5c)',color:'#fff',border:'none',fontFamily:'sans-serif',fontWeight:'bold',fontSize:14,cursor:'pointer'}}>
+          Acessar o Agente
+        </button>
+        <div style={{fontFamily:'sans-serif',fontSize:11,color:'#94a3b8',marginTop:12,textAlign:'center'}}>
+          Obtenha sua chave em console.anthropic.com → API Keys
+        </div>
+      </div>
+    </div>
+  );
+
+  return children(apiKey);
+}
 const CHECKLIST = {
   ETP: [
     { id: "etp1",  item: "Descrição da necessidade da contratação",             ref: "Art. 18, I, Lei 14.133/2021" },
@@ -90,7 +143,7 @@ const PROGRESS_STEPS = [
   { label: "Elaborando parecer conclusivo", icon: "📜" },
 ];
 
-function App() {
+function App({ apiKey }) {
   const [tipoArtefato, setTipoArtefato] = useState("ETP");
   const [texto, setTexto] = useState("");
   const [checklist, setChecklist] = useState({});
@@ -245,7 +298,7 @@ function App() {
     try {
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 8000,
@@ -290,7 +343,7 @@ LIMITES: incoerencias max 5; ausencias_cruzadas max 4; pontos_positivos max 3; c
     try {
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 4000, messages: [{ role: "user", content: prompt }] })
       });
       const data = await resp.json();
@@ -324,7 +377,7 @@ ${contextRevisao}`;
       const msgs = novasMsg.map(m => ({ role: m.role, content: m.content }));
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 2000, system: systemChat, messages: msgs })
       });
       const data = await resp.json();
@@ -767,7 +820,9 @@ ${ps.length>0?`${secao("Próximos Passos","#1e3a5f")}${ps.map((p,i)=>`<div style
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <ApiKeyGate>{(apiKey) => <App apiKey={apiKey} />}</ApiKeyGate>
+);
 </script>
 </body>
 </html>
